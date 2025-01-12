@@ -68,6 +68,9 @@ async def generate_access_token(phone_number, session_id, os, browser, device):
                 "sessionId": session_id,
                 "phoneNumber": phone_number
             }
+            if await r.json().get(f"models.Sessions:{session_id}"):
+                return access_token
+
             await r.json().set(f"models.Sessions:{session_id}", "$", session)
             await r.expire(f"models.Sessions:{session_id}", 15552000)
 
@@ -76,6 +79,7 @@ async def generate_access_token(phone_number, session_id, os, browser, device):
                     not await r.json().get(f"models.ScoresWallets:{phone_number}") or \
                     not await r.json().get(f"models.Wallets:{phone_number}"):
                 await pgsession.rollback()
+                raise
             return access_token
 
         except Exception as e:
@@ -124,7 +128,7 @@ async def consume_messages():
                     os = message_json['os']
 
                     if phone_number:
-                        access_token = await retry_async(generate_access_token, 3, 2, phone_number, session_id, os, browser, device)
+                        await retry_async(generate_access_token, 3, 2, phone_number, session_id, os, browser, device)
                         logging.info(f"Forwarded JWT request for phone number: {phone_number}")
                         await channel.default_exchange.publish(
                             aio_pika.Message(
