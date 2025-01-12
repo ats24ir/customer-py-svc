@@ -10,7 +10,6 @@ from random import randint
 from customer_create import customer_get_or_create
 from database_models.databases_connections import get_async_session , redis as r
 
-
 logging.basicConfig(
     level=logging.INFO,
     format='%(asctime)s - %(levelname)s - %(message)s',
