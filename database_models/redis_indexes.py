@@ -173,6 +173,7 @@ async def setup_indexes(redis_client):
         "$.reserved_at", "AS", "reserved_at", "TEXT"
     )
 
+
     print("All indexes have been created successfully.")
 
 async def main():
