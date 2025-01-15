@@ -1,3 +1,5 @@
+import os
+from dotenv import load_dotenv
 from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession
 from sqlalchemy.orm import sessionmaker
 from contextlib import asynccontextmanager, contextmanager
@@ -5,12 +7,14 @@ from redis.asyncio import Redis
 from urllib.parse import quote
 import asyncio
 
+# Load environment variables from .env file
+load_dotenv(os.path.join(os.path.dirname(__file__), '..', 'env', '.env'))
 
 redis = Redis(
-    host='192.168.16.143',
-    port=6290,
-    db=0,
-    password=None,
+    host=os.getenv('REDIS_HOST'),
+    port=int(os.getenv('REDIS_PORT')),
+    db=int(os.getenv('REDIS_DB')),
+    password=os.getenv('REDIS_PASSWORD'),
     socket_timeout=None,
     socket_connect_timeout=1,
     socket_keepalive=True,
@@ -32,7 +36,7 @@ redis = Redis(
     max_connections=100,
     single_connection_client=False,
     health_check_interval=10,
-    client_name='my_redis_client',
+    client_name=os.getenv('REDIS_CLIENT_NAME'),
     lib_name='redis-py',
     lib_version=None,
     username=None,
@@ -42,11 +46,10 @@ redis = Redis(
     credential_provider=None,
     protocol=3
 )
-password="123@"
-encoded_password = quote(password)
-# Asynchronous PostgreSQL engine with arguments
+
+encoded_password = quote(os.getenv('POSTGRES_PASSWORD'))
 engine = create_async_engine(
-    f'postgresql+asyncpg://rsvpuser:{encoded_password}@localhost:5432/rsvp',
+    f'postgresql+asyncpg://{os.getenv("POSTGRES_USER")}:{encoded_password}@{os.getenv("POSTGRES_HOST")}:{os.getenv("POSTGRES_PORT")}/{os.getenv("POSTGRES_DB")}',
     echo=False,
     pool_pre_ping=True,
     pool_recycle=3600,
@@ -65,18 +68,14 @@ AsyncSessionLocal = sessionmaker(
     future=True
 )
 
-
 @asynccontextmanager
 async def get_async_session():
-
     session = AsyncSessionLocal()
     try:
         yield session
     finally:
         await session.close()
 
-# For backward compatibility
 @contextmanager
 def get_sync_session():
-
     raise NotImplementedError("Synchronous sessions are not supported. Use `get_async_session` instead.")

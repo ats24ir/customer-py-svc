@@ -1,3 +1,5 @@
+import os
+from dotenv import load_dotenv
 import json
 import logging
 import jwt
@@ -8,7 +10,9 @@ import aio_pika
 import asyncio
 from random import randint
 from customer_create import customer_get_or_create
-from database_models.databases_connections import get_async_session , redis as r
+from database_models.databases_connections import get_async_session, redis as r
+
+load_dotenv(os.path.join(os.path.dirname(__file__), '..', 'env', '.env'))
 
 logging.basicConfig(
     level=logging.INFO,
@@ -16,11 +20,10 @@ logging.basicConfig(
     datefmt='%Y-%m-%d %H:%M:%S'
 )
 
-SECRET_KEY = secrets.token_hex(32)
-ACCESS_TOKEN_LIFETIME = datetime.timedelta(days=180)
+SECRET_KEY = os.getenv('JWT_SECRET_KEY')
+ACCESS_TOKEN_LIFETIME = datetime.timedelta(days=int(os.getenv('JWT_ACCESS_TOKEN_LIFETIME_DAYS', 180)))
 
 async def retry_async(coroutine, max_retries=3, delay=2, *args, **kwargs):
-
     for attempt in range(1, max_retries + 1):
         try:
             return await coroutine(*args, **kwargs)
@@ -32,14 +35,14 @@ async def retry_async(coroutine, max_retries=3, delay=2, *args, **kwargs):
                 logging.error(f"All retries for {coroutine.__name__} failed: {str(e)}")
                 raise
 
-async def generate_otp(phone_number,otp_expire):
+async def generate_otp(phone_number, otp_expire):
     try:
         if await r.json().get(f"models.OTP:{phone_number}"):
             return
         logging.info(f"Generating OTP for phone number: {phone_number}")
         otp = randint(100000, 999999)
         otp_expire = int(otp_expire)
-        otp_data = {"OTP": otp, "otp_expire":otp_expire,"time_stamp": time.time()}
+        otp_data = {"OTP": otp, "otp_expire": otp_expire, "time_stamp": time.time()}
         await r.json().set(f"models.OTP:{phone_number}", "$", otp_data)
         await r.expireat(f"models.OTP:{phone_number}", otp_expire)
         logging.info(f"Generated OTP {otp} for phone number {phone_number}")
@@ -68,8 +71,6 @@ async def generate_access_token(phone_number, session_id, os, browser, device):
                 "sessionId": session_id,
                 "phoneNumber": phone_number
             }
-            # if await r.json().get(f"models.Sessions:{session_id}"):
-            #     return access_token
 
             await r.json().set(f"models.Sessions:{session_id}", "$", session)
             await r.expire(f"models.Sessions:{session_id}", 15552000)
@@ -88,7 +89,9 @@ async def generate_access_token(phone_number, session_id, os, browser, device):
             raise
 
 async def consume_messages():
-    connection = await aio_pika.connect_robust("amqp://guest:guest@192.168.16.143:5673/")
+    connection = await aio_pika.connect_robust(
+        f"amqp://{os.getenv('RABBITMQ_USER')}:{os.getenv('RABBITMQ_PASSWORD')}@{os.getenv('RABBITMQ_HOST')}:{os.getenv('RABBITMQ_PORT')}/"
+    )
     channel = await connection.channel()
 
     await channel.declare_exchange('auth_exchange', type='direct', durable=True)
@@ -116,7 +119,7 @@ async def consume_messages():
                     phone_number = message_json["phoneNumber"]
                     otp_expire = message_json["otpExpire"]
                     if phone_number:
-                        await retry_async(generate_otp, 3, 2, phone_number,otp_expire)
+                        await retry_async(generate_otp, 3, 2, phone_number, otp_expire)
                         logging.info(f"Forwarded OTP request for phone number: {phone_number}")
                     else:
                         logging.error("Missing 'phone_number' in message body for OTP generation")
