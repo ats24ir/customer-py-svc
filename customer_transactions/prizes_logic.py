@@ -170,6 +170,7 @@ async def prize_balance_receipt_use(total_cost_of_services, phone_number, salon_
         )
         receipts = receipts_query.scalars().all()
 
+
         remaining_discount = total_discount_possible
         for receipt in receipts:
             if receipt.remaining_amount >= remaining_discount:
