@@ -1,51 +1,64 @@
 from database_models.alchemy_models import Gate, GateType, Invoice
-from database_models.databases_connections import get_sync_session as sessions,redis
+from database_models.databases_connections import get_async_session, redis
 from datetime import datetime
-from sqlalchemy import  select
+from sqlalchemy import select
 from login_logic.customer_create import customer_get_or_create
+from sqlalchemy.ext.asyncio import AsyncSession
 
-def entry_gate(phone_number,salon_id,operator=None, reserve_id=None):
-    with sessions() as session:
-        try:
-            customer_get_or_create(phone_number, session, redis)
-            new_entry = Gate(
-                phone_number=phone_number,
-                entered_at=datetime.now(),
-                salon_id=salon_id,
-                type=GateType.RESERVED if reserve_id else GateType.UNRESERVED,
-                reserve_id=reserve_id if reserve_id else None,
-                operator = operator if operator else "Reservation"
+async def entry_gate(phone_number: str, salon_id: int, session, operator: str = None, reserve_id: int = None) -> int:
+
+    try:
+        await customer_get_or_create(phone_number, session, redis)
+
+        # Create a new gate entry
+        new_entry = Gate(
+            phone_number=phone_number,
+            entered_at=datetime.now(),
+            salon_id=salon_id,
+            type=GateType.RESERVED if reserve_id else GateType.UNRESERVED,
+            reserve_id=reserve_id if reserve_id else None,
+            operator=operator if operator else "Reservation"
+        )
+        session.add(new_entry)
+        session.flush()
+        await session.commit()
+        return new_entry.id
+    except Exception as e:
+        print(f"The error in gate: {e}")
+        await session.rollback()
+        raise
+
+async def exit_gate(phone_number: str, session: AsyncSession):
+
+    try:
+        # Find the latest gate entry for the customer that hasn't exited yet
+        gate_query = await session.execute(
+            select(Gate)
+            .where(Gate.phone_number == phone_number)
+            .where(Gate.exited_at == None)
+            .where(Gate.presence_status == "InSalon")
+            .order_by(Gate.entered_at.desc())
+        )
+        sql_gate = gate_query.scalar_one_or_none()
+
+        if not sql_gate:
+            raise ValueError("You have no entry")
+
+        # Check if the customer has a pending invoice
+        if sql_gate.invoice_id:
+            invoice_query = await session.execute(
+                select(Invoice).where(Invoice.phone_number == phone_number)
             )
-            session.add(new_entry)
-            session.commit()
-            return new_entry
-        except Exception as e:
-            print(f"The error in gate: {e}")
+            sql_invoice = invoice_query.scalar_one_or_none()
+            if sql_invoice.status == "Pending":
+                raise ValueError("You have a pending invoice")
 
-def exit_gate(phone_number):
-    with sessions() as session:
-        try:
-            gate_query = session.execute(
-                select(Gate).where(Gate.phone_number == phone_number)
-                .where(Gate.exited_at == None)
-                .where(Gate.presence_status == "InSalon")
-                .order_by(Gate.entered_at.desc())
-            )
-            sql_gate = gate_query.scalar_one_or_none()
-            if not sql_gate:
-                raise ValueError ("you have no entry")
-
-            if sql_gate.invoice_id:
-                invoice_query = session.execute(
-                    select(Invoice).where(Invoice.phone_number == phone_number)
-                )
-                sql_invoice = invoice_query.scalar_one_or_none()
-                if sql_invoice.status == "Pending":
-                    raise ValueError ("you have pending invoice")
-            sql_gate.exited_at = datetime.now()
-            sql_gate.presence_status = "Exited"
-            session.add(sql_gate)
-            session.commit()
-        except Exception as e:
-            print(f"The error in gate: {e}")
-
+        # Update the gate entry to mark the exit
+        sql_gate.exited_at = datetime.now()
+        sql_gate.presence_status = "Exited"
+        session.add(sql_gate)
+        await session.commit()
+    except Exception as e:
+        print(f"The error in gate: {e}")
+        await session.rollback()
+        raise

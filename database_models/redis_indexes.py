@@ -1,12 +1,10 @@
-from redis import Redis
+from redis.asyncio import Redis
 from databases_connections import redis as redis_client
+import asyncio
 
-def create_redis_client():
-    return redis_client
-
-def setup_indexes(redis_client):
+async def setup_indexes(redis_client):
     # Receipts Index
-    redis_client.execute_command(
+    await redis_client.execute_command(
         "FT.CREATE", "models.Receipts:index", "ON", "JSON", "PREFIX", "1", "models.Receipts:",
         "SCHEMA",
         "$.id", "AS", "id", "TAG",
@@ -18,7 +16,7 @@ def setup_indexes(redis_client):
     )
 
     # Invoices Index
-    redis_client.execute_command(
+    await redis_client.execute_command(
         "FT.CREATE", "models.Invoices:index", "ON", "JSON", "PREFIX", "1", "models.Invoices:",
         "SCHEMA",
         "$.id", "AS", "id", "TAG",
@@ -30,7 +28,7 @@ def setup_indexes(redis_client):
     )
 
     # Services Index
-    redis_client.execute_command(
+    await redis_client.execute_command(
         "FT.CREATE", "models.Services:index", "ON", "JSON", "PREFIX", "1", "models.Services:",
         "SCHEMA",
         "$.id", "AS", "id", "TAG",
@@ -40,19 +38,17 @@ def setup_indexes(redis_client):
     )
 
     # Artists Index
-    redis_client.execute_command(
+    await redis_client.execute_command(
         "FT.CREATE", "models.Artists:index", "ON", "JSON", "PREFIX", "1", "models.Artists:",
         "SCHEMA",
         "$.id", "AS", "id", "TAG",
         "$.name", "AS", "name", "TEXT",
         "$.age", "AS", "age", "NUMERIC",
         "$.city", "AS", "city", "TEXT",
-        # "$.services", "AS", "services", "TAG",
-        # "$.working_hours", "AS", "working_hours", "TAG"
     )
 
     # Wallets Index
-    redis_client.execute_command(
+    await redis_client.execute_command(
         "FT.CREATE", "models.Wallets:index", "ON", "JSON", "PREFIX", "1", "models.Wallets:",
         "SCHEMA",
         "$.id", "AS", "id", "TAG",
@@ -62,7 +58,7 @@ def setup_indexes(redis_client):
     )
 
     # SalonPrizeWallet Index
-    redis_client.execute_command(
+    await redis_client.execute_command(
         "FT.CREATE", "models.SalonPrizeWallet:index", "ON", "JSON", "PREFIX", "1", "models.SalonPrizeWallet:",
         "SCHEMA",
         "$.id", "AS", "id", "TAG",
@@ -75,7 +71,7 @@ def setup_indexes(redis_client):
     )
 
     # ScoresWallets Index
-    redis_client.execute_command(
+    await redis_client.execute_command(
         "FT.CREATE", "models.ScoresWallets:index", "ON", "JSON", "PREFIX", "1", "models.ScoresWallets:",
         "SCHEMA",
         "$.id", "AS", "id", "TAG",
@@ -85,7 +81,7 @@ def setup_indexes(redis_client):
     )
 
     # ScoresWalletReceipt Index
-    redis_client.execute_command(
+    await redis_client.execute_command(
         "FT.CREATE", "models.ScoresWalletReceipt:index", "ON", "JSON", "PREFIX", "1", "models.ScoresWalletReceipt:",
         "SCHEMA",
         "$.id", "AS", "id", "TAG",
@@ -96,7 +92,7 @@ def setup_indexes(redis_client):
     )
 
     # CustomerGroups Index
-    redis_client.execute_command(
+    await redis_client.execute_command(
         "FT.CREATE", "models.CustomerGroups:index", "ON", "JSON", "PREFIX", "1", "models.Groups:",
         "SCHEMA",
         "$.id", "AS", "id", "TAG",
@@ -110,7 +106,7 @@ def setup_indexes(redis_client):
     )
 
     # Customers Index
-    redis_client.execute_command(
+    await redis_client.execute_command(
         "FT.CREATE", "models.Customers:index", "ON", "JSON", "PREFIX", "1", "models.Customers:",
         "SCHEMA",
         "$.id", "AS", "id", "TAG",
@@ -125,31 +121,31 @@ def setup_indexes(redis_client):
     )
 
     # Salons Index
-    redis_client.execute_command(
+    await redis_client.execute_command(
         "FT.CREATE", "models.Salons:index", "ON", "JSON", "PREFIX", "1", "models.Salons:",
         "SCHEMA",
         "$.id", "AS", "id", "TAG",
         "$.name", "AS", "name", "TEXT",
         "$.age", "AS", "age", "NUMERIC",
         "$.city", "AS", "city", "TEXT",
-        # "$.artists", "AS", "artists", "TAG",
-        # "$.services", "AS", "services", "TAG"
     )
-    redis_client.execute_command(
+
+    # OTP Index
+    await redis_client.execute_command(
         "FT.CREATE", "models.OTP:index", "ON", "JSON", "PREFIX", "1", "models.OTP:",
         "SCHEMA",
         "$.otp", "AS", "otp", "TAG",
-
     )
-    redis_client.execute_command(
+
+    # Sessions Index
+    await redis_client.execute_command(
         "FT.CREATE", "models.Sessions:index", "ON", "JSON", "PREFIX", "1", "models.Sessions:",
         "SCHEMA",
         "$.phoneNumber", "AS", "phoneNumber", "TAG",
-
     )
 
     # Reserve Index
-    redis_client.execute_command(
+    await redis_client.execute_command(
         "FT.CREATE", "models.Reserves:index", "ON", "JSON", "PREFIX", "1", "models.Reserves:",
         "SCHEMA",
         "$.id", "AS", "id", "TAG",
@@ -171,8 +167,10 @@ def setup_indexes(redis_client):
         "$.reserved_at", "AS", "reserved_at", "TEXT"
     )
 
-
     print("All indexes have been created successfully.")
 
+async def main():
+    await setup_indexes(redis_client)
+
 if __name__ == "__main__":
-    setup_indexes(redis_client)
+    asyncio.run(main())

@@ -28,7 +28,7 @@ async def create_group_for_customers(
             await session.flush()
 
 
-            salon_group = SQLSalonCustomerGroup(salon_id=salon_id, group_id=sql_group.id)
+            salon_group = SQLSalonCustomerGroup(salon_id=int(salon_id), group_id=sql_group.id)
             session.add(salon_group)
 
             await session.commit()
@@ -56,11 +56,11 @@ async def create_group_for_customers(
         logger.error(f"Error creating group: {e}")
         raise
 
-async def main():
-    salon_id = 1
-    group_name = "VIP Customers"
-    group_id = await create_group_for_customers(salon_id=salon_id, name=group_name)
-    print(f"Created group with ID: {group_id}")
-
-# Run the async function
-asyncio.run(main())
+# async def main():
+#     salon_id = 1
+#     group_name = "VIP Customers"
+#     group_id = await create_group_for_customers(salon_id=salon_id, name=group_name)
+#     print(f"Created group with ID: {group_id}")
+#
+# # Run the async function
+# asyncio.run(main())

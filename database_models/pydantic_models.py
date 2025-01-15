@@ -22,11 +22,15 @@ class Receipts(BaseModel):
 
 class Invoices(BaseModel):
     id: str = Field(...)
-    total_amount: int = Field(...)
+    total_amount: Optional[int]
     created_at: str = Field(...)
-    services_id: list = Field(...)
     phone_number: str = Field(...)
     status: str
+    pre_paid_amount: int = Field(...)
+    completed_at: Optional[str]
+    gate_id: str = Field(...)
+    salon_id: str = Field(...)
+    items: Optional[dict]
 
 class Services(BaseModel):
     id: str = Field(...)
@@ -34,6 +38,7 @@ class Services(BaseModel):
     price: int = Field(...)
     duration: int = Field(...)
     options: Optional[List[ServicesOptions]] = Field(None)
+    category_id: int = Field(...)
 
 
 class Artists(BaseModel):
@@ -50,26 +55,38 @@ class Wallets(BaseModel):
     out_of_wallet: int = Field(...)
     customer_id: int = Field(...)
 
+class ServiceCategory(BaseModel):
+    id: str = Field(...)
+    name: str = Field(...)
+    services: List[Services] = Field(...)
+    image: str
 
 class SalonPrizeWallet(BaseModel):
-    id: str = Field(...)
-    in_to_prize_balance: int = Field(...)
-    out_of_prize_balance: int = Field(...)
-    in_to_timed_prize_balance: int = Field(...)
-    out_of_timed_prize_balance: int = Field(...)
-    salon_id: str = Field(...)
-    customer_id: str = Field(...)
+    id: int = Field(...)
+    balance: int = Field(default=0)
+    salon_id: int = Field(...)
+    phone_number: str = Field(...)
 
 
-class SalonPrizeWalletReceipts(BaseModel):
-    id: str = Field(...)
-    is_spent: bool = Field(...)
-    timed_amount: int = Field(...)
-    unlimited_amount: int = Field(...)
+class OutcomePrizes(BaseModel):
+    id: int = Field(...)
+    amount: int = Field(...)
     created_at: str = Field(...)
-    customer_id: str = Field(...)
-    salon_id: str = Field(...)
+    phone_number: str = Field(...)
+    salon_id: int = Field(...)
+    invoice_spent_on: int = Field(...)
+    income_id: int = Field(...)
 
+
+class IncomePrize(BaseModel):
+    id: int = Field(...)
+    amount: int = Field(...)
+    created_at: str = Field(...)
+    phone_number: int = Field(...)
+    salon_id: int = Field(...)
+    expires_at: str = Field(...)
+    awarded_for_invoice_id: int = Field(...)
+    remaining_amount: int = Field(...)
 
 class ScoresWallets(BaseModel):
     id: str = Field(...)
@@ -90,10 +107,10 @@ class CustomerGroups(BaseModel):
     name: str = Field(...)
     pay_free_reserve: bool = Field(False)
     to_prize_wallet_percentage: int = Field(0)
-    to_timed_prize_wallet_percentage: int = Field(0)
     prize_wallet_usage_ratio: int = Field(0)
     salon_id: str = Field(...)
     points_needed:int = Field(0)
+    pre_pay_percentage:int = Field(20)
 
 
 class Customers(BaseModel):
@@ -109,7 +126,7 @@ class Customers(BaseModel):
 
 
 class Salons(BaseModel):
-    id: str = Field(...)
+    id: int = Field(...)
     name: str = Field(...)
     age: int = Field(...)
     city: str = Field(...)

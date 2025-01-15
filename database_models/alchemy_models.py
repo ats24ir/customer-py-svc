@@ -1,11 +1,14 @@
-from sqlalchemy import Column, Integer, String, DateTime, Boolean, JSON, ForeignKey, UniqueConstraint, Table,Enum
+from sqlalchemy import Column, Integer, String, DateTime, Boolean, JSON, ForeignKey, UniqueConstraint, Table, Enum
 from sqlalchemy.orm import relationship
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy import create_engine
 from sqlalchemy.orm import Session
 from enum import Enum as PyEnum
 from sqlalchemy.ext.hybrid import hybrid_property
+from urllib.parse import quote
+import psycopg2  # For database creation
 
+# Define enums
 class InvoiceStatus(PyEnum):
     COMPLETED = "Completed"
     PENDING = "Pending"
@@ -20,8 +23,10 @@ class PresenceStatus(PyEnum):
     EXITED = "Exited"
     UNPAID = "UnPaid"
 
+# Base for SQLAlchemy models
 Base = declarative_base()
 
+# Association tables
 salon_artist = Table('salon_artist', Base.metadata,
                      Column('salon_id', Integer, ForeignKey('salon.id')),
                      Column('artist_id', Integer, ForeignKey('artist.id'))
@@ -37,7 +42,7 @@ artist_service = Table('artist_service', Base.metadata,
                        Column('service_id', Integer, ForeignKey('service.id'))
                        )
 
-
+# Define models (unchanged)
 class IncomePrizes(Base):
     __tablename__ = 'income_prizes'
     id = Column(Integer, primary_key=True, autoincrement=True)
@@ -49,19 +54,15 @@ class IncomePrizes(Base):
     awarded_for_invoice_id = Column(Integer, ForeignKey('invoice.id'), nullable=True)
     remaining_amount = Column(Integer, nullable=False)
 
-
-#based not on the whole price but for each fragment of spent in incomes
-#in redis it will be different. it will have only the input and output in whole
-
 class OutcomePrize(Base):
     __tablename__ = 'outcome'
     id = Column(Integer, primary_key=True, autoincrement=True)
     phone_number = Column(String, ForeignKey('customer.phone_number'), nullable=False)
     created_at = Column(DateTime, nullable=False)
     amount = Column(Integer, nullable=False)
+    salon_id = Column(Integer, ForeignKey('salon.id'), nullable=False)
     invoice_spent_on = Column(Integer, ForeignKey('invoice.id'), nullable=False)
     income_id = Column(Integer, ForeignKey('income_prizes.id'), nullable=False)
-
 
 class PrizeWallets(Base):
     __tablename__ = 'prizewallets'
@@ -69,7 +70,6 @@ class PrizeWallets(Base):
     customer_phone_number = Column(String, ForeignKey('customer.phone_number'), nullable=False)
     salon_id = Column(Integer, ForeignKey('salon.id'), nullable=True)
     balance = Column(Integer, nullable=False)
-
 
 class Salon(Base):
     __tablename__ = 'salon'
@@ -87,9 +87,9 @@ class CustomerGroup(Base):
     id = Column(Integer, primary_key=True, autoincrement=True)
     name = Column(String, nullable=False)
     to_prize_balance_percentage = Column(Integer, nullable=True)
-    cashback_expire_in_days = Column(Integer, nullable=True, default=30)  # Removed trailing comma
+    cashback_expire_in_days = Column(Integer, nullable=True, default=30)
     prize_wallet_usage_ratio = Column(Integer, nullable=True)
-    pre_pay_percentage = Column(Integer, nullable=True)
+    pre_pay_percentage = Column(Integer, nullable=False)
     points_needed = Column(Integer, default=0, nullable=False)
 
     salon_customer_groups = relationship("SalonCustomerGroup", back_populates="group")
@@ -184,7 +184,6 @@ class Receipts(Base):
     reserve_id = Column(Integer, ForeignKey('reserved.id'), nullable=True)
     invoice = relationship("Invoice", back_populates="receipt", uselist=False)
 
-
 class Invoice(Base):
     __tablename__ = 'invoice'
     id = Column(Integer, primary_key=True, autoincrement=True)
@@ -195,12 +194,11 @@ class Invoice(Base):
     pre_paid_amount = Column(Integer, nullable=False)
     completed_at = Column(DateTime, nullable=True)
     gate_id = Column(Integer, ForeignKey('gate.id'), nullable=False)
-    salon_id = Column(Integer, ForeignKey('salon.id'),nullable = False)
+    reserved_id = Column(Integer, ForeignKey('reserved.id'), nullable=True)
+    salon_id = Column(Integer, ForeignKey('salon.id'), nullable=False)
     customer = relationship("Customer", back_populates="invoices")
     receipt = relationship("Receipts", back_populates="invoice", uselist=False)
     items = relationship("InvoiceItem", back_populates="invoice", cascade="all, delete-orphan")
-
-
 
 class InvoiceItem(Base):
     __tablename__ = 'invoice_item'
@@ -210,8 +208,9 @@ class InvoiceItem(Base):
     price_per_unit = Column(Integer, nullable=True)
     service_price = Column(Integer, nullable=True)
     is_service = Column(Boolean, nullable=False)
+    service_id = Column(Integer, ForeignKey('service.id'), nullable=True)
+    #product_id=Column(Integer,ForeignKey('service.id'), nullable=True)
     invoice = relationship("Invoice", back_populates="items")
-
 
 class Gate(Base):
     __tablename__ = 'gate'
@@ -220,14 +219,12 @@ class Gate(Base):
     entered_at = Column(DateTime, nullable=False)
     salon_id = Column(Integer, ForeignKey('salon.id'), nullable=False)
     exited_at = Column(DateTime, nullable=True)
-    presence_status  = Column(Enum(PresenceStatus, name="Presence_status_enum"), default=PresenceStatus.INSALON)
+    presence_status = Column(Enum(PresenceStatus, name="Presence_status_enum"), default=PresenceStatus.INSALON)
     reserve_id = Column(Integer, ForeignKey('reserved.id'), nullable=True)
     invoice_id = Column(Integer, ForeignKey('invoice.id'), nullable=True)
     invoice_closed_at = Column(DateTime, nullable=True)
     type = Column(Enum(GateType, name="gate_type_enum"), nullable=True)
     operator = Column(String, default="Reservation")
-
-
 
 class Wallet(Base):
     __tablename__ = 'wallet'
@@ -262,13 +259,52 @@ class Reserved(Base):
     reserved_at_jalali = Column(String, nullable=True)
     reserved_at = Column(String, nullable=True)
 
-engine = create_engine('postgresql://admin:admin@localhost:5432/mydatabase', echo=True)
+# Function to create the database if it doesn't exist
+def create_database():
+    try:
+        # Connect to the default PostgreSQL database
+        conn = psycopg2.connect(
+            dbname="postgres",  # Connect to the default 'postgres' database
+            user="rsvpuser",
+            password="123@",
+            host="localhost",
+            port="5432"
+        )
+        conn.autocommit = True  # Enable autocommit for database creation
+        cursor = conn.cursor()
+
+        # Check if the database exists
+        cursor.execute(f"SELECT 1 FROM pg_database WHERE datname = 'rsvp'")
+        exists = cursor.fetchone()
+
+        # Create the database if it doesn't exist
+        if not exists:
+            cursor.execute("CREATE DATABASE rsvp")
+            print("Database 'rsvp_dev' created successfully.")
+        else:
+            print("Database 'rsvp_dev' already exists.")
+
+        cursor.close()
+        conn.close()
+    except Exception as e:
+        print(f"Error creating database: {e}")
+
+# Create the database if it doesn't exist
+# create_database()
+
+# Create the SQLAlchemy engine for the new database
+password = "123@"
+encoded_password = quote(password)
+engine = create_engine(f'postgresql://rsvpuser:{encoded_password}@localhost:5432/rsvp', echo=True)
 session = Session(bind=engine)
 
+# Function to create tables
 def create_tables():
     with engine.begin() as conn:
         Base.metadata.create_all(conn)
+    print("Tables created successfully.")
 
+# Main function
 def main():
     create_tables()
 

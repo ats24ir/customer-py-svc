@@ -2,6 +2,7 @@ from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession
 from sqlalchemy.orm import sessionmaker
 from contextlib import asynccontextmanager, contextmanager
 from redis.asyncio import Redis
+from urllib.parse import quote
 import asyncio
 
 
@@ -41,10 +42,11 @@ redis = Redis(
     credential_provider=None,
     protocol=3
 )
-
+password="123@"
+encoded_password = quote(password)
 # Asynchronous PostgreSQL engine with arguments
 engine = create_async_engine(
-    'postgresql+asyncpg://admin:admin@localhost:5432/mydatabase',
+    f'postgresql+asyncpg://rsvpuser:{encoded_password}@localhost:5432/rsvp',
     echo=False,
     pool_pre_ping=True,
     pool_recycle=3600,

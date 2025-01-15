@@ -8,12 +8,22 @@ import logging
 from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession
 from sqlalchemy.orm import sessionmaker
 from customers_group import create_group_for_customers
-
+from urllib.parse import quote
 logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s")
 logger = logging.getLogger(__name__)
 
-
-engine = create_async_engine('postgresql+asyncpg://admin:admin@localhost:5432/mydatabase', echo=True)
+password="123@"
+encoded_password = quote(password)
+# Asynchronous PostgreSQL engine with arguments
+engine = create_async_engine(
+    f'postgresql+asyncpg://rsvpuser:{encoded_password}@localhost:5432/rsvp',
+    echo=False,
+    pool_pre_ping=True,
+    pool_recycle=3600,
+    pool_timeout=30,
+    max_overflow=10,
+    pool_size=5
+)
 async_session = sessionmaker(engine, class_=AsyncSession, expire_on_commit=False)
 
 # async def generate_time_blocks_for_month(salon: Salon, redis):
@@ -79,8 +89,7 @@ class SalonDataGenerator:
                 options = [{'name': f"Option {j}", 'price': randint(5, 20)} for j in range(1, 4)]
 
                 service = Services(id=str(i), name=self.service_names[i], price=price, duration=duration, options=options,
-                                   )
-
+                 category_id=int((i+0.1)/2))
 
                 # Alchemy PG insert
                 sql_service = Service(name=self.service_names[i], price=price, duration=duration)
@@ -95,10 +104,25 @@ class SalonDataGenerator:
                 self.service_list.append(service)
                 await redis.json().set(f"models.Services:{service.id}", "$", service.dict())
             await session.commit()
+###########
+    async def generate_categories(self, redis):
+            for i in range(1,6):
+                num_services = []
+                num_services.append(await redis.json().get(f"models.Services:{i}"))
+                num_services.append(await redis.json().get(f"models.Services:{i+1}"))
+                id=i
+                name=f"Category {i}"
+
+                category=ServiceCategory(
+                    id=str(id),
+                    name=name,
+                    services=num_services,
+                    image="image"
+                )
+                await redis.json().set(f"models.ServiceCategory:{id}", "$", category.dict())
 
 
-
-
+################
     async def generate_artists(self, redis):
         async with async_session() as session:
             for i in range(1, 51):
@@ -107,10 +131,17 @@ class SalonDataGenerator:
                 num_services = randint(1, min(5, len(self.service_list)))
                 services = sample(self.service_list, num_services)
                 services=list(services)
-
                 start_hour = randint(8, 11)
                 end_hour = start_hour + 8
-                working_hours = {"start": f"{start_hour:02d}:00", "end": f"{end_hour:02d}:00"}
+                salon_ids = [1, 2, 3, 4, 5]
+                salons_working_in = randint(1, 3)
+                salons = sample(salon_ids, salons_working_in)
+                working_hours = {}
+                for salon_id in salons:
+                    working_hours[salon_id] = {
+                        "start": f"{start_hour:02d}:00",
+                        "end": f"{end_hour:02d}:00"
+                    }
                 artist = Artists(id=str(i), name=f"Artist {i}", age=randint(20, 50), services=services, city=city,
                                  working_hours=working_hours)
 
@@ -175,15 +206,28 @@ class SalonDataGenerator:
 
     async def setup_salon_data(self, redis):
         async with async_session() as session:
-            for i in range(1, 51):
-                artists = [choice(self.artists_list) for _ in range(10)]
-                services = [service for artist in artists for service in artist.services]
+            for i in range(1, 6):
+                salon_id = i
+
+                # Filter artists whose working_hours contain the salon ID
+                filtered_artists = [
+                    artist for artist in self.artists_list
+                    if salon_id in artist.working_hours
+                ]
+
+                # If no artists are available for this salon, skip to the next iteration
+                if not filtered_artists:
+                    continue
+
+                # Get services from the selected artists
+                services = [service for artist in filtered_artists for service in artist.services]
+
                 city = choice(self.cities)
                 age = randint(1, 20)
 
                 # Alchemy PG insert
-                sql_salon = Salon(name=f"salon {i}", age=age, city=city)
-                for artist in artists:
+                sql_salon = Salon(id=i,name=f"salon {i}", age=age, city=city)
+                for artist in filtered_artists:
                     sql_artist = await session.get(Artist, int(artist.id))
                     sql_salon.artists.append(sql_artist)
                 for service in services:
@@ -198,9 +242,9 @@ class SalonDataGenerator:
                 await session.commit()
 
                 # Now create the group for customers
-                create_group_for_customers(sql_salon.id, "BaseGroup")
+                await create_group_for_customers(salon_id, "BaseGroup")
 
-                salon = Salons(id=salon_id, name=f"Salon {i}", age=age, city=city, artists=artists, services=services)
+                salon = Salons(id=int(salon_id), name=f"Salon {i}", age=age, city=city, artists=filtered_artists, services=services)
                 await redis.json().set(f"models.Salons:{salon.id}", "$", salon.dict())
 
     async def generate_sample_reserves(self, redis):
@@ -230,6 +274,7 @@ class SalonDataGenerator:
                 await redis.json().set(f"models.Reserves:{i}", "$", reserve.dict())
 
 
+
     async def run(self):
             redis =  Redis(host='192.168.16.143', port=6290, db=0)
             start_time = datetime.now()
@@ -238,6 +283,7 @@ class SalonDataGenerator:
             await self.setup_salon_data(redis)
             await self.generate_customers(redis)
             await self.generate_sample_reserves(redis)
+            await self.generate_categories(redis)
             end_time = datetime.now() - start_time
             print(end_time)
 

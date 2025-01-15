@@ -7,10 +7,11 @@ from database_models.alchemy_models import (
     SalonCustomerGroup as SQLSalonCustomerGroup, ScoresWallet as SQLScoresWallet,
     ScoresReceipt as SQLScoresReceipt, IncomePrizes, OutcomePrize, PrizeWallets
 )
-
+from database_models.pydantic_models import *
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 logger = logging.getLogger(__name__)
-
+from redis.asyncio import Redis
+import asyncio
 
 async def find_customer_placement(phone_number, salon_id, session):
     try:
@@ -20,7 +21,7 @@ async def find_customer_placement(phone_number, salon_id, session):
             .filter(SQLScoresWallet.phone_number == phone_number)
         )
         customer_points = scores_wallet_query.scalar_one_or_none()
-
+        print(customer_points,salon_id)
         if customer_points is None:
             raise ValueError(f"No ScoresWallet found for customer with ID {phone_number}")
 
@@ -33,13 +34,13 @@ async def find_customer_placement(phone_number, salon_id, session):
             .order_by(SQLCustomerGroup.points_needed.desc())
         )
         groups = groups_query.scalars().all()
-
+        print(groups)
         # Fetch customer details
         customer_query = await session.execute(
             select(SQLCustomer).filter(SQLCustomer.phone_number == phone_number)
         )
         customer = customer_query.scalar_one_or_none()
-
+        print(customer)
         if not customer:
             raise ValueError(f"No customer found with ID {phone_number}")
 
@@ -48,14 +49,14 @@ async def find_customer_placement(phone_number, salon_id, session):
             print(highest_group)
             return highest_group
         else:
-            return None
+            raise ValueError
 
     except Exception as e:
         logger.error(f"Error finding customer placement: {e}")
         raise
 
 
-async def prize_balance_receipt_charge(phone_number, salon_id, total_spent, session, invoice_id):
+async def prize_balance_receipt_charge(phone_number, salon_id, total_spent, session,redis, invoice_id):
     try:
         group = await find_customer_placement(phone_number, salon_id, session)
         amount = int(group.to_prize_balance_percentage * total_spent / 100)
@@ -92,8 +93,34 @@ async def prize_balance_receipt_charge(phone_number, salon_id, total_spent, sess
                 balance=amount
             )
             session.add(prize_wallet)
+        await session.flush()
+        # await session.commit()
 
-        await session.commit()
+        #Redis Implantation
+        redis_income_prize = IncomePrize(
+            id=income_receipt.id,
+            amount=amount,
+            created_at=income_receipt.created_at.strftime("%Y-%m-%d %H:%M"),
+            phone_number=phone_number,
+            salon_id=salon_id,
+            expires_at=income_receipt.expire_date.strftime("%Y-%m-%d %H:%M"),
+            awarded_for_invoice_id=invoice_id,
+            remaining_amount=amount,
+        )
+
+        redis_salon_wallet = await redis.json().get(f"models.SalonPrizeWallet:{phone_number}-{salon_id}")
+        if redis_salon_wallet:
+            new_balance = redis_salon_wallet["balance"] +amount
+            await redis.json().set(f"models.SalonPrizeWallet:{phone_number}-{salon_id}", "$.balance", new_balance)
+        else:
+            redis_salon_wallet = SalonPrizeWallet(
+                id = prize_wallet.id,
+                balance = amount,
+                salon_id = salon_id,
+                phone_number = phone_number,
+            )
+            await redis.json().set(f"models.SalonPrizeWallet:{phone_number}-{salon_id}", "$", redis_salon_wallet.dict())
+        await redis.json().set(f"models.PrizeIncome:{phone_number}-{salon_id}-{income_receipt.id}", "$", redis_income_prize.dict())
 
     except Exception as e:
         await session.rollback()
@@ -112,7 +139,7 @@ async def salon_prize_wallet_discount_calculator(total_cost_of_services, phone_n
         raise e
 
 
-async def prize_balance_receipt_use(total_cost_of_services, phone_number, salon_id, session, invoice_id):
+async def prize_balance_receipt_use(total_cost_of_services, phone_number, salon_id, session,redis, invoice_id):
     try:
         total_discount_possible = await salon_prize_wallet_discount_calculator(
             total_cost_of_services, phone_number, salon_id, session
@@ -181,7 +208,7 @@ async def prize_balance_receipt_use(total_cost_of_services, phone_number, salon_
         raise e
 
 
-async def earn_scores(phone_number, paid_price, session):
+async def earn_scores(phone_number, paid_price, session,redis):
     try:
         # Fetch scores wallet
         scores_wallet_query = await session.execute(
@@ -228,3 +255,32 @@ async def earn_scores(phone_number, paid_price, session):
         logger.error(f"Error updating customer scores: {e}")
         await session.rollback()
         raise e
+
+async def main():
+    # Initialize the async session and Redis connection
+    async with get_async_session() as session:
+        redis = Redis(
+            host='192.168.16.143',
+            port=6290,
+            db=0,
+            password=None,
+            decode_responses=False
+        )
+
+        # Example data
+        phone_number = "09011401001"
+        salon_id = 1
+        total_spent = 1000
+        invoice_id = 5
+
+        try:
+            # Call the prize_balance_receipt_charge function
+            await prize_balance_receipt_charge(phone_number, salon_id, total_spent, session, redis, invoice_id)
+            print("Prize balance receipt charge processed successfully.")
+        except Exception as e:
+            print(f"An error occurred: {e}")
+        finally:
+            await session.commit()
+
+# Run the async main function
+# asyncio.run(main())

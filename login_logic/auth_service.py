@@ -32,15 +32,16 @@ async def retry_async(coroutine, max_retries=3, delay=2, *args, **kwargs):
                 logging.error(f"All retries for {coroutine.__name__} failed: {str(e)}")
                 raise
 
-async def generate_otp(phone_number):
+async def generate_otp(phone_number,otp_expire):
     try:
         if await r.json().get(f"models.OTP:{phone_number}"):
             return
         logging.info(f"Generating OTP for phone number: {phone_number}")
         otp = randint(100000, 999999)
-        otp_data = {"OTP": otp, "otp_expire":time.time()+180,"time_stamp": time.time()}
+        otp_expire = int(otp_expire)
+        otp_data = {"OTP": otp, "otp_expire":otp_expire,"time_stamp": time.time()}
         await r.json().set(f"models.OTP:{phone_number}", "$", otp_data)
-        await r.expire(f"models.OTP:{phone_number}", 180)
+        await r.expireat(f"models.OTP:{phone_number}", otp_expire)
         logging.info(f"Generated OTP {otp} for phone number {phone_number}")
     except Exception as e:
         logging.error(f"Error processing OTP: {str(e)}")
@@ -67,8 +68,8 @@ async def generate_access_token(phone_number, session_id, os, browser, device):
                 "sessionId": session_id,
                 "phoneNumber": phone_number
             }
-            if await r.json().get(f"models.Sessions:{session_id}"):
-                return access_token
+            # if await r.json().get(f"models.Sessions:{session_id}"):
+            #     return access_token
 
             await r.json().set(f"models.Sessions:{session_id}", "$", session)
             await r.expire(f"models.Sessions:{session_id}", 15552000)
@@ -113,8 +114,9 @@ async def consume_messages():
                 if task_type == 'generate_otp':
                     message_json = json.loads(message.body.decode())
                     phone_number = message_json["phoneNumber"]
+                    otp_expire = message_json["otpExpire"]
                     if phone_number:
-                        await retry_async(generate_otp, 3, 2, phone_number)
+                        await retry_async(generate_otp, 3, 2, phone_number,otp_expire)
                         logging.info(f"Forwarded OTP request for phone number: {phone_number}")
                     else:
                         logging.error("Missing 'phone_number' in message body for OTP generation")
