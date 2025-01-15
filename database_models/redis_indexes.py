@@ -143,7 +143,13 @@ async def setup_indexes(redis_client):
         "SCHEMA",
         "$.phoneNumber", "AS", "phoneNumber", "TAG",
     )
+    await redis_client.execute_command(
+        "FT.CREATE", "models.ServiceCategory:index", "ON", "JSON", "PREFIX", "1", "models.ServiceCategory:",
+        "SCHEMA",
+        "$.name", "AS", "name", "TEXT",
+        "$.id", "AS", "id", "TAG",
 
+    )
     # Reserve Index
     await redis_client.execute_command(
         "FT.CREATE", "models.Reserves:index", "ON", "JSON", "PREFIX", "1", "models.Reserves:",
