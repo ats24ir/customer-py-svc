@@ -46,7 +46,7 @@ async def find_customer_placement(phone_number, salon_id, session):
 
         if groups:
             highest_group = groups[0]
-            print(highest_group)
+            print(highest_group.points_needed)
             return highest_group
         else:
             raise ValueError
@@ -169,8 +169,8 @@ async def prize_balance_receipt_use(total_cost_of_services, phone_number, salon_
             .order_by(IncomePrizes.expire_date.asc())
         )
         receipts = receipts_query.scalars().all()
-
-
+        logger.info(f"this is the combined receipts {receipts}")
+        logger.info(f"reached here")
         remaining_discount = total_discount_possible
         for receipt in receipts:
             if receipt.remaining_amount >= remaining_discount:
@@ -180,10 +180,41 @@ async def prize_balance_receipt_use(total_cost_of_services, phone_number, salon_
                     created_at=datetime.now(),
                     amount=remaining_discount,
                     invoice_spent_on=invoice_id,
-                    income_id=receipt.id
+                    income_id=receipt.id,
+                    salon_id=salon_id,
                 )
-                session.add_all([receipt, outcome_receipt])
+                logger.info(f"reached here under the for loop")
+                # await session.flush()
+                logger.info(f"reached here under the for loop and under the flush")
+                logger.info(f"Session state: {session.is_active}")
+                logger.info(f"outcome: {outcome_receipt}")
+                logger.info(f"session: {session}")
+                logger.info(f"reciepts: {receipt}")
+                session.add(receipt)
+                logger.info(f"reached here under the for loop in the middle")
+                session.add(outcome_receipt)
+                await session.flush()
+                logger.info(f"reached here under the for loop in the middle")
+                # Redis Application _ Editing Income
+                redis_receipt = await redis.json().get(f"models.PrizeIncome:{phone_number}-{salon_id}-{receipt.id}")
+                new_remaining_for_redis = redis_receipt["remaining_amount"]-remaining_discount
+                await redis.json().set(f"models.PrizeIncome:{phone_number}-{salon_id}-{receipt.id}", "$.remaining_amount", new_remaining_for_redis)
+                logger.info(f"reached here under the for loop and under that")
+                # Redis Application _ Creating Outcome
+                redis_outcome = OutcomePrizes(
+                    id=outcome_receipt.id,
+                    phone_number = phone_number,
+                    created_at=outcome_receipt.created_at.strftime("%Y-%m-%d %H:%M"),
+                    amount=remaining_discount,
+                    invoice_spent_on=invoice_id,
+                    income_id=receipt.id,
+                    salon_id=salon_id
+                )
+                await redis.json().set(f"models.OutcomePrizes:{phone_number}-{salon_id}-{outcome_receipt.id}",
+                                       "$", redis_outcome.dict())
                 break
+
+
             elif receipt.remaining_amount < remaining_discount:
                 remaining_discount -= receipt.remaining_amount
                 outcome_receipt = OutcomePrize(
@@ -191,15 +222,35 @@ async def prize_balance_receipt_use(total_cost_of_services, phone_number, salon_
                     created_at=datetime.now(),
                     amount=receipt.remaining_amount,
                     invoice_spent_on=invoice_id,
-                    income_id=receipt.id
+                    income_id=receipt.id,
+                    salon_id=salon_id,
                 )
+                logger.info(f"reached here in the second part")
                 receipt.remaining_amount = 0
                 session.add_all([receipt, outcome_receipt])
-
+                await session.flush()
+                # Redis Application _ Editing Income
+                await redis.json().set(f"models.IncomePrize:{phone_number}-{salon_id}-{receipt.id}", "$.remaining_amount", 0)
+                # Redis Application _ Creating Outcome
+                redis_outcome = OutcomePrizes(
+                    id=outcome_receipt.id,
+                    phone_number=phone_number,
+                    created_at=outcome_receipt.created_at.strftime("%Y-%m-%d %H:%M"),
+                    amount=outcome_receipt.amount,
+                    invoice_spent_on=invoice_id,
+                    income_id=receipt.id,
+                    salon_id=salon_id,
+                )
+                await redis.json().set(f"models.OutcomePrizes:{phone_number}-{salon_id}-{outcome_receipt.id}",
+                                       "$", redis_outcome)
+        logger.info(f"does not reached here")
         total_discount_applied = total_discount_possible - remaining_discount
         prize_wallet.balance = max(0, prize_wallet.balance - total_discount_applied)
         session.add(prize_wallet)
-
+        await session.flush()
+        #Redis Updating The Balance
+        await redis.json().set(f"models.SalonPrizeWallet:{phone_number}-{salon_id}",
+                               "$.balance", prize_wallet.balance)
         print(f"this is the output of the use function {total_cost_of_services - remaining_discount}")
         return total_cost_of_services - remaining_discount
 
@@ -257,12 +308,13 @@ async def earn_scores(phone_number, paid_price, session,redis):
         await session.rollback()
         raise e
 
+
 async def main():
     # Initialize the async session and Redis connection
     async with get_async_session() as session:
         redis = Redis(
             host='192.168.16.143',
-            port=6290,
+            port=6291,
             db=0,
             password=None,
             decode_responses=False
@@ -272,16 +324,18 @@ async def main():
         phone_number = "09011401001"
         salon_id = 1
         total_spent = 1000
-        invoice_id = 5
-
+        invoice_id = 1
+        total_spent=10000
         try:
             # Call the prize_balance_receipt_charge function
-            await prize_balance_receipt_charge(phone_number, salon_id, total_spent, session, redis, invoice_id)
+            #await prize_balance_receipt_charge(phone_number, salon_id, total_spent, session, redis, invoice_id)
+            await prize_balance_receipt_use(total_spent,phone_number,salon_id,session,redis,invoice_id)
             print("Prize balance receipt charge processed successfully.")
         except Exception as e:
             print(f"An error occurred: {e}")
         finally:
             await session.commit()
+
 
 # Run the async main function
 # asyncio.run(main())

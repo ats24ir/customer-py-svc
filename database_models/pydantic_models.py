@@ -21,24 +21,25 @@ class Receipts(BaseModel):
     phone_number: str = Field(...)
 
 class Invoices(BaseModel):
-    id: str = Field(...)
-    total_amount: Optional[int]
+    id: int = Field(...)
+    total_amount: Optional[int] = None
     created_at: str = Field(...)
     phone_number: str = Field(...)
     status: str
     pre_paid_amount: int = Field(...)
-    completed_at: Optional[str]
-    gate_id: str = Field(...)
-    salon_id: str = Field(...)
-    items: Optional[dict]
+    completed_at: Optional[str] = None
+    gate_id: int = Field(...)
+    salon_id: int = Field(...)
+    items: Optional[dict] = None
 
 class Services(BaseModel):
     id: str = Field(...)
     name: str = Field(...)
     price: int = Field(...)
     duration: int = Field(...)
+    descriptions : str = Field(...)
     options: Optional[List[ServicesOptions]] = Field(None)
-    category_id: int = Field(...)
+    category_id: str = Field(...)
 
 
 class Artists(BaseModel):
@@ -156,13 +157,18 @@ class Reserve(BaseModel):
     reserved_at: Optional[str] = Field(None)
 
 
-class CanceledReservations(BaseModel):
-    time: str = Field(...)
-    salon: str = Field(...)
-    artist: str = Field(...)
-    service: Services = Field(...)
-    customer: Customers = Field(...)
-    cancellation_time: datetime = Field(...)
 
+class Gate(BaseModel):
+    id: int = Field(...)
+    phone_number: str = Field(...)
+    entered_at: str = Field(...)
+    salon_id: int = Field(...)
+    exited_at: str = Field(...)
+    presence_status: str = Field(...)
+    reserved_at: Optional[str] = Field(None)
+    invoice_id: Optional[int] = Field(None)
+    invoice_closed_at: Optional[str] = Field(None)
+    type: str = Field(...)
+    operator: str = Field(...)
 
 

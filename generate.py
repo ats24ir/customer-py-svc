@@ -16,7 +16,7 @@ password="123@"
 encoded_password = quote(password)
 # Asynchronous PostgreSQL engine with arguments
 engine = create_async_engine(
-    f'postgresql+asyncpg://rsvpuser:{encoded_password}@localhost:5432/rsvp',
+    f'postgresql+asyncpg://pyuser:{encoded_password}@localhost:5433/rsvp_dev',
     echo=False,
     pool_pre_ping=True,
     pool_recycle=3600,
@@ -85,14 +85,14 @@ class SalonDataGenerator:
             for i in range(10):
                 price = randint(1000, 20000)
                 duration = randint(15, 180)
-
+                descriptions = "behtarin khadamate jahan ra ba ma tajrobe konid"
                 options = [{'name': f"Option {j}", 'price': randint(5, 20)} for j in range(1, 4)]
-
+                category_id = int((i + 0.1) / 2)
                 service = Services(id=str(i), name=self.service_names[i], price=price, duration=duration, options=options,
-                 category_id=int((i+0.1)/2))
+                 category_id=str(category_id),descriptions=descriptions)
 
                 # Alchemy PG insert
-                sql_service = Service(name=self.service_names[i], price=price, duration=duration)
+                sql_service = Service(name=self.service_names[i], price=price, duration=duration,descriptions=descriptions)
 
                 for option_data in options:
                     sql_option = ServiceOption(name=option_data['name'], price=option_data['price'])
@@ -276,7 +276,7 @@ class SalonDataGenerator:
 
 
     async def run(self):
-            redis =  Redis(host='192.168.16.143', port=6290, db=0)
+            redis =  Redis(host='192.168.16.143', port=6291, db=0)
             start_time = datetime.now()
             await self.generate_services(redis)
             await self.generate_artists(redis)

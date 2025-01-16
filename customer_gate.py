@@ -3,9 +3,9 @@ from database_models.databases_connections import get_async_session, redis
 from datetime import datetime
 from sqlalchemy import select
 from login_logic.customer_create import customer_get_or_create
-from sqlalchemy.ext.asyncio import AsyncSession
 
-async def entry_gate(phone_number: str, salon_id: int, session, operator: str = None, reserve_id: int = None) -> int:
+
+async def entry_gate(phone_number, salon_id, session, operator = None, reserve_id = None):
 
     try:
         await customer_get_or_create(phone_number, session, redis)
@@ -28,7 +28,8 @@ async def entry_gate(phone_number: str, salon_id: int, session, operator: str = 
         await session.rollback()
         raise
 
-async def exit_gate(phone_number: str, session: AsyncSession):
+
+async def exit_gate(phone_number, session):
 
     try:
         # Find the latest gate entry for the customer that hasn't exited yet

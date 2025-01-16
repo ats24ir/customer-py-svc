@@ -1,3 +1,5 @@
+from curses.textpad import Textbox
+
 from sqlalchemy import Column, Integer, String, DateTime, Boolean, JSON, ForeignKey, UniqueConstraint, Table, Enum
 from sqlalchemy.orm import relationship
 from sqlalchemy.ext.declarative import declarative_base
@@ -119,7 +121,7 @@ class Service(Base):
     name = Column(String, nullable=False)
     price = Column(Integer, nullable=False)
     duration = Column(Integer, nullable=False)
-
+    descriptions = Column (String , nullable=True )
     options = relationship("ServiceOption", back_populates="service")
     artists = relationship("Artist", secondary=artist_service, back_populates="services")
     salons = relationship("Salon", secondary=salon_service, back_populates="services")
@@ -295,7 +297,7 @@ def create_database():
 # Create the SQLAlchemy engine for the new database
 password = "123@"
 encoded_password = quote(password)
-engine = create_engine(f'postgresql://rsvpuser:{encoded_password}@localhost:5432/rsvp', echo=True)
+engine = create_engine(f'postgresql://pyuser:{encoded_password}@localhost:5433/rsvp_dev', echo=True)
 session = Session(bind=engine)
 
 # Function to create tables

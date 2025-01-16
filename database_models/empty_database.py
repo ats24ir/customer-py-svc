@@ -4,7 +4,7 @@ from sqlalchemy.orm import sessionmaker
 import asyncio
 
 # Database connection details
-DATABASE_URI = "postgresql+asyncpg://rsvpuser:123%40@localhost:5432/rsvp"
+DATABASE_URI = "postgresql+asyncpg://pyuser:123%40@localhost:5433/rsvp_dev"
 
 # Create an async engine
 async_engine = create_async_engine(DATABASE_URI, echo=True)

@@ -35,6 +35,8 @@ async def setup_indexes(redis_client):
         "$.name", "AS", "name", "TEXT",
         "$.price", "AS", "price", "NUMERIC",
         "$.duration", "AS", "duration", "NUMERIC",
+        "$.category_id", "AS", "category_id", "TAG",
+        "$.descriptions", "AS", "descriptions", "TEXT"
     )
 
     # Artists Index

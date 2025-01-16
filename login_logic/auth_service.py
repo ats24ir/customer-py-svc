@@ -5,7 +5,6 @@ import logging
 import jwt
 import datetime
 import time
-import secrets
 import aio_pika
 import asyncio
 from random import randint

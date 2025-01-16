@@ -36,16 +36,16 @@ async def create_invoice(customer_phone_number, session, salon_id, redis, reserv
 
         session.add_all([sql_invoice])
         await session.flush()
-        # redis_invoice = Invoices(
-        #     id=sql_invoice.id,
-        #     created_at=sql_invoice.created_at,
-        #     phone_number=customer_phone_number,
-        #     status=sql_invoice.status,
-        #     pre_paid_amount=sql_invoice.pre_paid_amount,
-        #     gate_id=sql_invoice.gate_id,
-        #     salon_id=salon_id,
-        # )
-        # await redis.json().set(f"models.Invoices:{sql_invoice.id}", "$", redis_invoice.dict())
+        redis_invoice = Invoices(
+            id=sql_invoice.id,
+            created_at=sql_invoice.created_at.strftime("%Y-%m-%d %H:%M"),
+            phone_number=customer_phone_number,
+            status=sql_invoice.status,
+            pre_paid_amount=sql_invoice.pre_paid_amount,
+            gate_id=sql_invoice.gate_id,
+            salon_id=salon_id,
+        )
+        await redis.json().set(f"models.Invoices:{sql_invoice.id}", "$", redis_invoice.dict())
         await session.commit()
         return sql_invoice.id
     except Exception as e:
