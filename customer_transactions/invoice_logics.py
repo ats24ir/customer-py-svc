@@ -2,7 +2,7 @@ from sqlalchemy import select, update
 from database_models.pydantic_models import Invoices
 from database_models.alchemy_models import Gate, GateType, Invoice, Reserved, InvoiceItem
 from sqlalchemy import func
-from customer_gate import entry_gate
+from customer_gate import entry_gate,find_customer_gate
 from datetime import datetime
 from prizes_logic import prize_balance_receipt_use, prize_balance_receipt_charge, earn_scores
 from redis.asyncio import Redis
@@ -19,12 +19,12 @@ async def get_reserve_pre_paid_price(reserve_id, session):
 
 async def create_invoice(customer_phone_number, session, salon_id, redis, reserve_id=None, artist_id=None, gate_id=None):
     try:
-        invoice_query = await session.execute(
-            select(Invoice).where(Invoice.gate_id == gate_id)
-        )
-        sql_invoice = invoice_query.scalar_one_or_none()
-        if not sql_invoice or not gate_id:
-            gate_id = await entry_gate(customer_phone_number, salon_id, session, reserve_id)
+        #the line below can be inaccurate. what if the outcome is from before and the night job did not handle it?
+        #it does handle it now, nice and easy
+        sql_gate = await find_customer_gate(customer_phone_number,salon_id,session)
+        if sql_gate is None or sql_gate.entered_at.date() != datetime.now().date():
+            gate_id = await entry_gate(customer_phone_number, salon_id, session,redis, artist_id,reserve_id)
+
         pre_paid_price = await get_reserve_pre_paid_price(reserve_id, session)
         sql_invoice = Invoice(
             phone_number=customer_phone_number,
@@ -44,6 +44,7 @@ async def create_invoice(customer_phone_number, session, salon_id, redis, reserv
             pre_paid_amount=sql_invoice.pre_paid_amount,
             gate_id=sql_invoice.gate_id,
             salon_id=salon_id,
+            reserve_id=reserve_id if reserve_id else None,
         )
         await redis.json().set(f"models.Invoices:{sql_invoice.id}", "$", redis_invoice.dict())
         await session.commit()
@@ -124,8 +125,9 @@ async def main():
     async with get_async_session() as session:
         customer_phone_number = "09011401001"
         salon_id = 1
+        artist_id = 1
         try:
-            invoice_id = await create_invoice(customer_phone_number, session, salon_id, redis)
+            invoice_id = await create_invoice(customer_phone_number, session, salon_id, redis,artist_id=artist_id)
             print(f"Invoice created successfully with ID: {invoice_id}")
         except Exception as e:
             print(f"An error occurred: {e}")

@@ -73,7 +73,7 @@ async_session = sessionmaker(engine, class_=AsyncSession, expire_on_commit=False
 class SalonDataGenerator:
     def __init__(self):
         self.service_names = [f"Service{i}" for i in range(10)]
-        self.cities = ["Los Angeles", "New York", "Chicago", "Houston", "Phoenix"]
+        self.cities = ["mashhad"]
         self.service_list = []
         self.artists_list = []
         self.customers_id_list = []
@@ -127,23 +127,33 @@ class SalonDataGenerator:
         async with async_session() as session:
             for i in range(1, 51):
                 city = choice(self.cities)
-
+                days = [0,1,2,3,4,5,6]
+                number_of_days = randint(3,6)
+                days_in_salon = sample(days, number_of_days)
                 num_services = randint(1, min(5, len(self.service_list)))
                 services = sample(self.service_list, num_services)
                 services=list(services)
+                services_ids = []
+                for service in services:
+                    services_ids.append(str(service.id))
+
                 start_hour = randint(8, 11)
                 end_hour = start_hour + 8
                 salon_ids = [1, 2, 3, 4, 5]
-                salons_working_in = randint(1, 3)
+                salons_working_in = 3
                 salons = sample(salon_ids, salons_working_in)
-                working_hours = {}
+                working_hours = []
                 for salon_id in salons:
-                    working_hours[salon_id] = {
+                    working_hours.append({
+                        "salon_id": str(salon_id),
                         "start": f"{start_hour:02d}:00",
-                        "end": f"{end_hour:02d}:00"
-                    }
+                        "end": f"{end_hour:02d}:00",
+                        "salon_name":f"Salon {salon_id}",
+                        "working_days": days_in_salon,
+                        "city":"mashhad"
+                    })
                 artist = Artists(id=str(i), name=f"Artist {i}", age=randint(20, 50), services=services, city=city,
-                                 working_hours=working_hours)
+                                 working_hours=working_hours,services_ids=services_ids)
 
                 # Alchemy PG insert
                 sql_artist = Artist(name=f"Artist {i}", age=randint(20, 50), city=city, working_hours=working_hours)
@@ -208,13 +218,13 @@ class SalonDataGenerator:
         async with async_session() as session:
             for i in range(1, 6):
                 salon_id = i
-
+                # print(artist[f"working_hours"[0]]["salon_id"])
                 # Filter artists whose working_hours contain the salon ID
                 filtered_artists = [
                     artist for artist in self.artists_list
-                    if salon_id in artist.working_hours
+                    if any(str(salon_id) == str(wh["salon_id"]) for wh in artist.working_hours)
                 ]
-
+                print(filtered_artists)
                 # If no artists are available for this salon, skip to the next iteration
                 if not filtered_artists:
                     continue

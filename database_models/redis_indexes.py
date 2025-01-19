@@ -44,9 +44,10 @@ async def setup_indexes(redis_client):
         "FT.CREATE", "models.Artists:index", "ON", "JSON", "PREFIX", "1", "models.Artists:",
         "SCHEMA",
         "$.id", "AS", "id", "TAG",
-        "$.name", "AS", "name", "TEXT",
-        "$.age", "AS", "age", "NUMERIC",
-        "$.city", "AS", "city", "TEXT",
+        "$.name", "AS", "name", "TEXT", "SORTABLE",
+        "$.age", "AS", "age", "NUMERIC", "SORTABLE",
+        "$.city", "AS", "city", "TEXT", "SORTABLE",
+        "$.services_ids", "AS", "services_ids", "TAG",
     )
 
     # Wallets Index

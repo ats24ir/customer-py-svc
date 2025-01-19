@@ -28,6 +28,7 @@ class Invoices(BaseModel):
     status: str
     pre_paid_amount: int = Field(...)
     completed_at: Optional[str] = None
+    reserve_id: Optional[str] = None
     gate_id: int = Field(...)
     salon_id: int = Field(...)
     items: Optional[dict] = None
@@ -48,7 +49,8 @@ class Artists(BaseModel):
     age: int = Field(...)
     city: str = Field(...)
     services: List[Services] = Field(...)
-    working_hours: Dict = Field(...)
+    services_ids : List[str] = Field(...)
+    working_hours: List = Field(...)
 
 class Wallets(BaseModel):
     id: str = Field(...)
@@ -163,12 +165,12 @@ class Gate(BaseModel):
     phone_number: str = Field(...)
     entered_at: str = Field(...)
     salon_id: int = Field(...)
-    exited_at: str = Field(...)
-    presence_status: str = Field(...)
-    reserved_at: Optional[str] = Field(None)
+    exited_at: Optional[str] = Field(None)
+    presence_status: str = Field(default="InSalon")
+    reserve_id: Optional[int] = Field(None)
     invoice_id: Optional[int] = Field(None)
     invoice_closed_at: Optional[str] = Field(None)
     type: str = Field(...)
-    operator: str = Field(...)
+    operator: str = Field(default="Reservation")
 
 

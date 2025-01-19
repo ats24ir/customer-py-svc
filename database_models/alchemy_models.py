@@ -15,6 +15,7 @@ class InvoiceStatus(PyEnum):
     COMPLETED = "Completed"
     PENDING = "Pending"
     CANCELLED = "Cancelled"
+    NOTPAID = "Not Paid"
 
 class GateType(PyEnum):
     RESERVED = "Reserved"
@@ -24,6 +25,7 @@ class PresenceStatus(PyEnum):
     INSALON = "InSalon"
     EXITED = "Exited"
     UNPAID = "UnPaid"
+    SYSTEMCLOSED = "SystemClosed"
 
 # Base for SQLAlchemy models
 Base = declarative_base()
