@@ -139,7 +139,7 @@ class SalonDataGenerator:
 
                 start_hour = randint(8, 11)
                 end_hour = start_hour + 8
-                salon_ids = [1, 2, 3, 4, 5]
+                salon_ids = ["1","2", "3", "4", "5"]
                 salons_working_in = 3
                 salons = sample(salon_ids, salons_working_in)
                 working_hours = []
@@ -153,7 +153,7 @@ class SalonDataGenerator:
                         "city":"mashhad"
                     })
                 artist = Artists(id=str(i), name=f"Artist {i}", age=randint(20, 50), services=services, city=city,
-                                 working_hours=working_hours,services_ids=services_ids)
+                                 working_hours=working_hours,salons_ids=salons,services_ids=services_ids)
 
                 # Alchemy PG insert
                 sql_artist = Artist(name=f"Artist {i}", age=randint(20, 50), city=city, working_hours=working_hours)

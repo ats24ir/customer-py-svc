@@ -48,6 +48,7 @@ async def setup_indexes(redis_client):
         "$.age", "AS", "age", "NUMERIC", "SORTABLE",
         "$.city", "AS", "city", "TEXT", "SORTABLE",
         "$.services_ids", "AS", "services_ids", "TAG",
+        "$.salons_ids", "AS", "salons_ids", "TAG",
     )
 
     # Wallets Index

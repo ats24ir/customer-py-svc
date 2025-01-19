@@ -1,5 +1,3 @@
-from curses.textpad import Textbox
-
 from sqlalchemy import Column, Integer, String, DateTime, Boolean, JSON, ForeignKey, UniqueConstraint, Table, Enum
 from sqlalchemy.orm import relationship
 from sqlalchemy.ext.declarative import declarative_base
@@ -262,39 +260,6 @@ class Reserved(Base):
     reserved_at_timestamp = Column(Integer, nullable=True)
     reserved_at_jalali = Column(String, nullable=True)
     reserved_at = Column(String, nullable=True)
-
-# Function to create the database if it doesn't exist
-def create_database():
-    try:
-        # Connect to the default PostgreSQL database
-        conn = psycopg2.connect(
-            dbname="postgres",  # Connect to the default 'postgres' database
-            user="rsvpuser",
-            password="123@",
-            host="localhost",
-            port="5432"
-        )
-        conn.autocommit = True  # Enable autocommit for database creation
-        cursor = conn.cursor()
-
-        # Check if the database exists
-        cursor.execute(f"SELECT 1 FROM pg_database WHERE datname = 'rsvp'")
-        exists = cursor.fetchone()
-
-        # Create the database if it doesn't exist
-        if not exists:
-            cursor.execute("CREATE DATABASE rsvp")
-            print("Database 'rsvp_dev' created successfully.")
-        else:
-            print("Database 'rsvp_dev' already exists.")
-
-        cursor.close()
-        conn.close()
-    except Exception as e:
-        print(f"Error creating database: {e}")
-
-# Create the database if it doesn't exist
-# create_database()
 
 # Create the SQLAlchemy engine for the new database
 password = "123@"

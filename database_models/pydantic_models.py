@@ -50,6 +50,7 @@ class Artists(BaseModel):
     city: str = Field(...)
     services: List[Services] = Field(...)
     services_ids : List[str] = Field(...)
+    salons_ids: List[str] = Field(...)
     working_hours: List = Field(...)
 
 class Wallets(BaseModel):
